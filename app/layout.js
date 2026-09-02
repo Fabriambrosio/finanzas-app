@@ -15,8 +15,11 @@ export const metadata = {
   title: "Finanzas App",
   description: "Gestión personal de ingresos y gastos",
   manifest: "/manifest.webmanifest",
+  icons: {
+    icon: "/icons/icon-192.png",
+    apple: "/icons/icon-192.png",
+  },
 };
-
 export default function RootLayout({ children }) {
   return (
     <html
