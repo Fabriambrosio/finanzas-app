@@ -1,4 +1,5 @@
 
+
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
@@ -23,6 +24,7 @@ export default function Home() {
   const [user, setUser] = useState(null)
   const [transactions, setTransactions] = useState([])
   const [partnerId, setPartnerId] = useState(null)
+  const [partnerLabel, setPartnerLabel] = useState('ella')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -40,7 +42,6 @@ export default function Home() {
   const [transactionFilter, setTransactionFilter] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [graphView, setGraphView] = useState('mine')
-  const isUser1 = user?.id === 'b545935b-17ae-4b00-8bc3-70c5227f913e'
 
   useEffect(() => {
     loadDashboard()
@@ -61,44 +62,59 @@ export default function Home() {
 
     setUser(user)
 
-const { data: coupleData, error: coupleError } = await supabase
-  .from('Couples')
-  .select('user_id_1, user_id_2')
-  .maybeSingle()
+    // Cargar preferencia de cómo llamar a la pareja
+    const { data: profileData, error: profileError } = await supabase
+      .from('Profiles')
+      .select('partner_label')
+      .eq('id', user.id)
+      .maybeSingle()
 
-if (coupleError) {
-  setError(coupleError.message)
-  setLoading(false)
-  return
-}
+    if (profileError) {
+      setError(profileError.message)
+      setLoading(false)
+      return
+    }
 
-const detectedPartnerId = coupleData
-  ? coupleData.user_id_1 === user.id
-    ? coupleData.user_id_2
-    : coupleData.user_id_1
-  : null
+    if (profileData?.partner_label) {
+      setPartnerLabel(profileData.partner_label)
+    }
 
-setPartnerId(detectedPartnerId)
-console.log('MI ID:', user.id)
-console.log('ID DE ELLA:', detectedPartnerId)
+    const { data: coupleData, error: coupleError } = await supabase
+      .from('Couples')
+      .select('user_id_1, user_id_2')
+      .maybeSingle()
 
-const userIds = detectedPartnerId
-  ? [user.id, detectedPartnerId]
-  : [user.id]
+    if (coupleError) {
+      setError(coupleError.message)
+      setLoading(false)
+      return
+    }
 
-const { data, error } = await supabase
-  .from('Transactions')
-  .select('*')
-  .in('user_id', userIds)
-  .order('date', { ascending: false })
-  .order('created_at', { ascending: false })
+    const detectedPartnerId = coupleData
+      ? coupleData.user_id_1 === user.id
+        ? coupleData.user_id_2
+        : coupleData.user_id_1
+      : null
+
+    setPartnerId(detectedPartnerId)
+
+    const userIds = detectedPartnerId
+      ? [user.id, detectedPartnerId]
+      : [user.id]
+
+    const { data, error } = await supabase
+      .from('Transactions')
+      .select('*')
+      .in('user_id', userIds)
+      .order('date', { ascending: false })
+      .order('created_at', { ascending: false })
 
     if (error) {
       setError(error.message)
       setLoading(false)
       return
     }
-console.log('TRANSACCIONES:', data)
+
     setTransactions(data || [])
     setLoading(false)
   }
@@ -112,53 +128,47 @@ console.log('TRANSACCIONES:', data)
       )
     )
   }
-const monthlyTransactions = useMemo(() => {
-  const year = selectedMonth.getFullYear()
-  const month = selectedMonth.getMonth()
 
-  return transactions.filter((transaction) => {
-    const transactionDate = new Date(`${transaction.date}T00:00:00`)
+  const monthlyTransactions = useMemo(() => {
+    const year = selectedMonth.getFullYear()
+    const month = selectedMonth.getMonth()
 
-    return (
-      transaction.user_id === user.id &&
-      transactionDate.getFullYear() === year &&
-      transactionDate.getMonth() === month
-    )
+    return transactions.filter((transaction) => {
+      const transactionDate = new Date(`${transaction.date}T00:00:00`)
+
+      return (
+        transaction.user_id === user.id &&
+        transactionDate.getFullYear() === year &&
+        transactionDate.getMonth() === month
+      )
+    })
+  }, [transactions, selectedMonth, user])
+
+  const monthlyAllTransactions = useMemo(() => {
+    const year = selectedMonth.getFullYear()
+    const month = selectedMonth.getMonth()
+
+    return transactions.filter((transaction) => {
+      const transactionDate = new Date(`${transaction.date}T00:00:00`)
+
+      return (
+        transactionDate.getFullYear() === year &&
+        transactionDate.getMonth() === month
+      )
+    })
+  }, [transactions, selectedMonth])
+
+  const graphTransactions = monthlyAllTransactions.filter((transaction) => {
+    if (graphView === 'mine') {
+      return transaction.user_id === user.id
+    }
+
+    if (graphView === 'partner') {
+      return transaction.user_id === partnerId
+    }
+
+    return true
   })
-}, [transactions, selectedMonth, user])
-
-const monthlyAllTransactions = useMemo(() => {
-  const year = selectedMonth.getFullYear()
-  const month = selectedMonth.getMonth()
-
-  return transactions.filter((transaction) => {
-    const transactionDate = new Date(`${transaction.date}T00:00:00`)
-
-    return (
-      transactionDate.getFullYear() === year &&
-      transactionDate.getMonth() === month
-    )
-  })
-}, [transactions, selectedMonth])
-
-const graphTransactions = monthlyAllTransactions.filter((transaction) => {
-  console.log('GRAPH VIEW:', graphView)
-console.log('GRAPH TRANSACTIONS:', monthlyAllTransactions)
-  if (graphView === 'mine') {
-    return transaction.user_id === user.id
-  }
-
-  if (graphView === 'partner') {
-    return transaction.user_id === partnerId
-  }
-
-  return true
-})
-
-console.log('MES:', selectedMonth)
-console.log('TODAS DEL MES:', monthlyAllTransactions)
-console.log('GRAFICO FINAL:', graphTransactions)
-console.log('PARTNER ID:', partnerId)
 
   const filteredTransactions = monthlyTransactions.filter((transaction) => {
     const matchesFilter =
@@ -206,13 +216,13 @@ console.log('PARTNER ID:', partnerId)
       )
 
       return (
-  transaction.user_id === user.id &&
-  transactionDate <= new Date(
-    selectedMonth.getFullYear(),
-    selectedMonth.getMonth() + 1,
-    0
-  )
-)
+        transaction.user_id === user.id &&
+        transactionDate <= new Date(
+          selectedMonth.getFullYear(),
+          selectedMonth.getMonth() + 1,
+          0
+        )
+      )
     })
     .reduce((total, transaction) => {
       const amount = Number(transaction.amount)
@@ -397,48 +407,53 @@ console.log('PARTNER ID:', partnerId)
         </div>
 
         {/* GRÁFICO */}
-<div className="mt-6">
+        <div className="mt-6">
 
-  <div className="mb-3 grid grid-cols-3 gap-2">
-    <button
-      onClick={() => setGraphView('mine')}
-      className={`rounded-lg px-3 py-2 text-sm font-bold ${
-        graphView === 'mine'
-          ? 'bg-white text-black'
-          : 'border border-gray-700 bg-gray-900 text-gray-300 hover:bg-gray-800'
-      }`}
-    >
-      👤 Solo yo
-    </button>
+          <div className="mb-3 grid grid-cols-3 gap-2">
 
-    <button
-      onClick={() => setGraphView('partner')}
-      className={`rounded-lg px-3 py-2 text-sm font-bold ${
-        graphView === 'partner'
-          ? 'bg-white text-black'
-          : 'border border-gray-700 bg-gray-900 text-gray-300 hover:bg-gray-800'
-      }`}
-    >
-      {isUser1 ? '👩 Solo ella' : '👨 Solo él'}
-    </button>
+            <button
+              onClick={() => setGraphView('mine')}
+              className={`rounded-lg px-3 py-2 text-sm font-bold ${
+                graphView === 'mine'
+                  ? 'bg-white text-black'
+                  : 'border border-gray-700 bg-gray-900 text-gray-300 hover:bg-gray-800'
+              }`}
+            >
+              👤 Solo yo
+            </button>
 
-    <button
-      onClick={() => setGraphView('both')}
-      className={`rounded-lg px-3 py-2 text-sm font-bold ${
-        graphView === 'both'
-          ? 'bg-white text-black'
-          : 'border border-gray-700 bg-gray-900 text-gray-300 hover:bg-gray-800'
-      }`}
-    >
-      👥 Ambos
-    </button>
-  </div>
+            <button
+              onClick={() => setGraphView('partner')}
+              className={`rounded-lg px-3 py-2 text-sm font-bold ${
+                graphView === 'partner'
+                  ? 'bg-white text-black'
+                  : 'border border-gray-700 bg-gray-900 text-gray-300 hover:bg-gray-800'
+              }`}
+            >
+              {partnerLabel === 'ella'
+                ? '👩 Solo ella'
+                : '👨 Solo él'}
+            </button>
 
-  <ExpensesByCategoryChart
-    transactions={graphTransactions}
-  />
+            <button
+              onClick={() => setGraphView('both')}
+              className={`rounded-lg px-3 py-2 text-sm font-bold ${
+                graphView === 'both'
+                  ? 'bg-white text-black'
+                  : 'border border-gray-700 bg-gray-900 text-gray-300 hover:bg-gray-800'
+              }`}
+            >
+              👥 Ambos
+            </button>
 
-</div>
+          </div>
+
+          <ExpensesByCategoryChart
+            transactions={graphTransactions}
+          />
+
+        </div>
+
         {/* MOVIMIENTOS */}
         <div className="mt-6 rounded-xl border border-gray-800 bg-gray-950 shadow-sm">
 
@@ -584,5 +599,4 @@ console.log('PARTNER ID:', partnerId)
     </main>
   )
 }
-
 
