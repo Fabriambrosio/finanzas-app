@@ -14,6 +14,7 @@ const categories = [
   'Salud',
   'Educación',
   'Entretenimiento',
+'Suscripciones',
   'Ropa',
   'Tecnología',
   'Viajes',

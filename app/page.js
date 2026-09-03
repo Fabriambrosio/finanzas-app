@@ -40,6 +40,7 @@ export default function Home() {
   const [transactionFilter, setTransactionFilter] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [graphView, setGraphView] = useState('mine')
+  const isUser1 = user?.id === 'b545935b-17ae-4b00-8bc3-70c5227f913e'
 
   useEffect(() => {
     loadDashboard()
@@ -418,7 +419,7 @@ console.log('PARTNER ID:', partnerId)
           : 'border border-gray-700 bg-gray-900 text-gray-300 hover:bg-gray-800'
       }`}
     >
-      👩 Solo ella
+      {isUser1 ? '👩 Solo ella' : '👨 Solo él'}
     </button>
 
     <button
