@@ -22,6 +22,7 @@ export default function Home() {
 
   const [user, setUser] = useState(null)
   const [transactions, setTransactions] = useState([])
+  const [partnerId, setPartnerId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -38,6 +39,7 @@ export default function Home() {
 
   const [transactionFilter, setTransactionFilter] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
+  const [graphView, setGraphView] = useState('mine')
 
   useEffect(() => {
     loadDashboard()
@@ -58,19 +60,44 @@ export default function Home() {
 
     setUser(user)
 
-    const { data, error } = await supabase
-      .from('Transactions')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('date', { ascending: false })
-      .order('created_at', { ascending: false })
+const { data: coupleData, error: coupleError } = await supabase
+  .from('Couples')
+  .select('user_id_1, user_id_2')
+  .maybeSingle()
+
+if (coupleError) {
+  setError(coupleError.message)
+  setLoading(false)
+  return
+}
+
+const detectedPartnerId = coupleData
+  ? coupleData.user_id_1 === user.id
+    ? coupleData.user_id_2
+    : coupleData.user_id_1
+  : null
+
+setPartnerId(detectedPartnerId)
+console.log('MI ID:', user.id)
+console.log('ID DE ELLA:', detectedPartnerId)
+
+const userIds = detectedPartnerId
+  ? [user.id, detectedPartnerId]
+  : [user.id]
+
+const { data, error } = await supabase
+  .from('Transactions')
+  .select('*')
+  .in('user_id', userIds)
+  .order('date', { ascending: false })
+  .order('created_at', { ascending: false })
 
     if (error) {
       setError(error.message)
       setLoading(false)
       return
     }
-
+console.log('TRANSACCIONES:', data)
     setTransactions(data || [])
     setLoading(false)
   }
@@ -84,22 +111,53 @@ export default function Home() {
       )
     )
   }
+const monthlyTransactions = useMemo(() => {
+  const year = selectedMonth.getFullYear()
+  const month = selectedMonth.getMonth()
 
-  const monthlyTransactions = useMemo(() => {
-    const year = selectedMonth.getFullYear()
-    const month = selectedMonth.getMonth()
+  return transactions.filter((transaction) => {
+    const transactionDate = new Date(`${transaction.date}T00:00:00`)
 
-    return transactions.filter((transaction) => {
-      const transactionDate = new Date(
-        `${transaction.date}T00:00:00`
-      )
+    return (
+      transaction.user_id === user.id &&
+      transactionDate.getFullYear() === year &&
+      transactionDate.getMonth() === month
+    )
+  })
+}, [transactions, selectedMonth, user])
 
-      return (
-        transactionDate.getFullYear() === year &&
-        transactionDate.getMonth() === month
-      )
-    })
-  }, [transactions, selectedMonth])
+const monthlyAllTransactions = useMemo(() => {
+  const year = selectedMonth.getFullYear()
+  const month = selectedMonth.getMonth()
+
+  return transactions.filter((transaction) => {
+    const transactionDate = new Date(`${transaction.date}T00:00:00`)
+
+    return (
+      transactionDate.getFullYear() === year &&
+      transactionDate.getMonth() === month
+    )
+  })
+}, [transactions, selectedMonth])
+
+const graphTransactions = monthlyAllTransactions.filter((transaction) => {
+  console.log('GRAPH VIEW:', graphView)
+console.log('GRAPH TRANSACTIONS:', monthlyAllTransactions)
+  if (graphView === 'mine') {
+    return transaction.user_id === user.id
+  }
+
+  if (graphView === 'partner') {
+    return transaction.user_id === partnerId
+  }
+
+  return true
+})
+
+console.log('MES:', selectedMonth)
+console.log('TODAS DEL MES:', monthlyAllTransactions)
+console.log('GRAFICO FINAL:', graphTransactions)
+console.log('PARTNER ID:', partnerId)
 
   const filteredTransactions = monthlyTransactions.filter((transaction) => {
     const matchesFilter =
@@ -146,11 +204,14 @@ export default function Home() {
         `${transaction.date}T00:00:00`
       )
 
-      return transactionDate <= new Date(
-        selectedMonth.getFullYear(),
-        selectedMonth.getMonth() + 1,
-        0
-      )
+      return (
+  transaction.user_id === user.id &&
+  transactionDate <= new Date(
+    selectedMonth.getFullYear(),
+    selectedMonth.getMonth() + 1,
+    0
+  )
+)
     })
     .reduce((total, transaction) => {
       const amount = Number(transaction.amount)
@@ -335,12 +396,48 @@ export default function Home() {
         </div>
 
         {/* GRÁFICO */}
-        <div className="mt-6">
-          <ExpensesByCategoryChart
-            transactions={monthlyTransactions}
-          />
-        </div>
+<div className="mt-6">
 
+  <div className="mb-3 grid grid-cols-3 gap-2">
+    <button
+      onClick={() => setGraphView('mine')}
+      className={`rounded-lg px-3 py-2 text-sm font-bold ${
+        graphView === 'mine'
+          ? 'bg-white text-black'
+          : 'border border-gray-700 bg-gray-900 text-gray-300 hover:bg-gray-800'
+      }`}
+    >
+      👤 Solo yo
+    </button>
+
+    <button
+      onClick={() => setGraphView('partner')}
+      className={`rounded-lg px-3 py-2 text-sm font-bold ${
+        graphView === 'partner'
+          ? 'bg-white text-black'
+          : 'border border-gray-700 bg-gray-900 text-gray-300 hover:bg-gray-800'
+      }`}
+    >
+      👩 Solo ella
+    </button>
+
+    <button
+      onClick={() => setGraphView('both')}
+      className={`rounded-lg px-3 py-2 text-sm font-bold ${
+        graphView === 'both'
+          ? 'bg-white text-black'
+          : 'border border-gray-700 bg-gray-900 text-gray-300 hover:bg-gray-800'
+      }`}
+    >
+      👥 Ambos
+    </button>
+  </div>
+
+  <ExpensesByCategoryChart
+    transactions={graphTransactions}
+  />
+
+</div>
         {/* MOVIMIENTOS */}
         <div className="mt-6 rounded-xl border border-gray-800 bg-gray-950 shadow-sm">
 
