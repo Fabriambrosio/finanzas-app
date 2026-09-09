@@ -158,6 +158,9 @@ export default function Home() {
     })
   }, [transactions, selectedMonth])
 
+  // GRÁFICO:
+  // Se mantiene como estaba: cambia entre yo / pareja / ambos.
+  // El componente del gráfico muestra únicamente gastos.
   const graphTransactions = monthlyAllTransactions.filter((transaction) => {
     if (graphView === 'mine') {
       return transaction.user_id === user.id
@@ -170,7 +173,24 @@ export default function Home() {
     return true
   })
 
-  const filteredTransactions = monthlyTransactions.filter((transaction) => {
+  // MOVIMIENTOS:
+  // Mismos usuarios que seleccionamos arriba, pero mostramos
+  // ingresos y gastos.
+  const movementTransactions = monthlyAllTransactions.filter((transaction) => {
+    if (graphView === 'mine') {
+      return transaction.user_id === user.id
+    }
+
+    if (graphView === 'partner') {
+      return transaction.user_id === partnerId
+    }
+
+    return true
+  })
+
+  // Aplicamos los filtros de tipo y búsqueda solamente
+  // sobre la lista de movimientos.
+  const filteredTransactions = movementTransactions.filter((transaction) => {
     const matchesFilter =
       transactionFilter === 'all' ||
       transaction.type === transactionFilter
@@ -189,57 +209,92 @@ export default function Home() {
     return matchesFilter && matchesSearch
   })
 
-  const income = useMemo(() => {
-    return monthlyTransactions
-      .filter((transaction) => transaction.type === 'income')
-      .reduce(
-        (total, transaction) =>
-          total + Number(transaction.amount),
-        0
-      )
-  }, [monthlyTransactions])
+  const myMonthlyTransactions = monthlyAllTransactions.filter(
+  (transaction) => transaction.user_id === user.id
+)
 
-  const expenses = useMemo(() => {
-    return monthlyTransactions
-      .filter((transaction) => transaction.type === 'expense')
-      .reduce(
-        (total, transaction) =>
-          total + Number(transaction.amount),
-        0
-      )
-  }, [monthlyTransactions])
+const partnerMonthlyTransactions = monthlyAllTransactions.filter(
+  (transaction) => transaction.user_id === partnerId
+)
 
-  const accumulatedBalance = transactions
-    .filter((transaction) => {
-      const transactionDate = new Date(
-        `${transaction.date}T00:00:00`
-      )
+function calculateTotals(userTransactions) {
+  const income = userTransactions
+    .filter((transaction) => transaction.type === 'income')
+    .reduce(
+      (total, transaction) => total + Number(transaction.amount),
+      0
+    )
 
-      return (
-        transaction.user_id === user.id &&
-        transactionDate <= new Date(
-          selectedMonth.getFullYear(),
-          selectedMonth.getMonth() + 1,
-          0
-        )
-      )
-    })
-    .reduce((total, transaction) => {
-      const amount = Number(transaction.amount)
+  const expenses = userTransactions
+    .filter((transaction) => transaction.type === 'expense')
+    .reduce(
+      (total, transaction) => total + Number(transaction.amount),
+      0
+    )
 
-      return transaction.type === 'income'
-        ? total + amount
-        : total - amount
-    }, 0)
+  const savings = income - expenses
 
-  const monthlySavings = income - expenses
+  return {
+    income,
+    expenses,
+    savings,
+  }
+}
 
-  const savingsPercentage =
-    income > 0
-      ? Math.round((monthlySavings / income) * 100)
-      : 0
+const myTotals = calculateTotals(myMonthlyTransactions)
+const partnerTotals = calculateTotals(partnerMonthlyTransactions)
 
-  async function deleteTransaction(id) {
+const income =
+  graphView === 'partner'
+    ? partnerTotals.income
+    : myTotals.income
+
+const expenses =
+  graphView === 'partner'
+    ? partnerTotals.expenses
+    : myTotals.expenses
+
+const monthlySavings =
+  graphView === 'partner'
+    ? partnerTotals.savings
+    : myTotals.savings
+
+const accumulatedBalance = transactions
+  .filter((transaction) => {
+    const transactionDate = new Date(
+      `${transaction.date}T00:00:00`
+    )
+
+    const selectedEndDate = new Date(
+      selectedMonth.getFullYear(),
+      selectedMonth.getMonth() + 1,
+      0
+    )
+
+    const selectedUserId =
+      graphView === 'partner'
+        ? partnerId
+        : user.id
+
+    return (
+      transaction.user_id === selectedUserId &&
+      transactionDate <= selectedEndDate
+    )
+  })
+  .reduce((total, transaction) => {
+    const amount = Number(transaction.amount)
+
+    return transaction.type === 'income'
+      ? total + amount
+      : total - amount
+  }, 0)
+
+const savingsPercentage =
+  income > 0
+    ? Math.round((monthlySavings / income) * 100)
+    : 0
+
+async function deleteTransaction(id) {
     const confirmed = window.confirm(
       '¿Seguro que querés eliminar este movimiento?'
     )
@@ -356,56 +411,140 @@ export default function Home() {
         {/* RESUMEN */}
         <div className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
 
-          {/* SALDO */}
-          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm sm:p-5">
-            <p className="text-xs font-bold text-blue-900 sm:text-sm">
-              Saldo Acumulado
-            </p>
+         {/* SALDO */}
+<div className="rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm sm:p-5">
+  <p className="text-xs font-bold text-blue-900 sm:text-sm">
+    Saldo Acumulado
+  </p>
 
-            <p className="mt-2 break-words text-xl font-bold text-blue-900 sm:text-2xl">
-              {currency.format(accumulatedBalance)}
-            </p>
-          </div>
+  {graphView === 'both' ? (
+    <div className="mt-2 space-y-1">
+      <p className="text-sm font-bold text-blue-900">
+        Vos: {currency.format(
+          transactions
+            .filter((transaction) => transaction.user_id === user.id)
+            .reduce((total, transaction) => {
+              const amount = Number(transaction.amount)
 
-          {/* INGRESOS */}
-          <div className="rounded-xl border border-green-200 bg-green-50 p-4 shadow-sm sm:p-5">
-            <p className="text-xs font-bold text-green-900 sm:text-sm">
-              Ingresos
-            </p>
+              return transaction.type === 'income'
+                ? total + amount
+                : total - amount
+            }, 0)
+        )}
+      </p>
 
-            <p className="mt-2 break-words text-xl font-bold text-green-900 sm:text-2xl">
-              {currency.format(income)}
-            </p>
-          </div>
+      <p className="text-sm font-bold text-blue-900">
+        {partnerLabel === 'ella' ? 'Ella' : 'Él'}:{' '}
+        {currency.format(
+          transactions
+            .filter((transaction) => transaction.user_id === partnerId)
+            .reduce((total, transaction) => {
+              const amount = Number(transaction.amount)
+
+              return transaction.type === 'income'
+                ? total + amount
+                : total - amount
+            }, 0)
+        )}
+      </p>
+    </div>
+  ) : (
+    <p className="mt-2 break-words text-xl font-bold text-blue-900 sm:text-2xl">
+      {currency.format(accumulatedBalance)}
+    </p>
+  )}
+</div>
+
+         {/* INGRESOS */}
+<div className="rounded-xl border border-green-200 bg-green-50 p-4 shadow-sm sm:p-5">
+  <p className="text-xs font-bold text-green-900 sm:text-sm">
+    Ingresos
+  </p>
+
+  {graphView === 'both' ? (
+    <div className="mt-2 space-y-1">
+      <p className="text-sm font-bold text-green-900">
+        Vos: {currency.format(myTotals.income)}
+      </p>
+
+      <p className="text-sm font-bold text-green-900">
+        {partnerLabel === 'ella' ? 'Ella' : 'Él'}:{' '}
+        {currency.format(partnerTotals.income)}
+      </p>
+    </div>
+  ) : (
+    <p className="mt-2 break-words text-xl font-bold text-green-900 sm:text-2xl">
+      {currency.format(income)}
+    </p>
+  )}
+</div>
 
           {/* GASTOS */}
-          <div className="rounded-xl border border-red-200 bg-red-50 p-4 shadow-sm sm:p-5">
-            <p className="text-xs font-bold text-red-900 sm:text-sm">
-              Gastos
-            </p>
+<div className="rounded-xl border border-red-200 bg-red-50 p-4 shadow-sm sm:p-5">
+  <p className="text-xs font-bold text-red-900 sm:text-sm">
+    Gastos
+  </p>
 
-            <p className="mt-2 break-words text-xl font-bold text-red-900 sm:text-2xl">
-              {currency.format(expenses)}
-            </p>
-          </div>
+  {graphView === 'both' ? (
+    <div className="mt-2 space-y-1">
+      <p className="text-sm font-bold text-red-900">
+        Vos: {currency.format(myTotals.expenses)}
+      </p>
 
-          {/* AHORRO */}
-          <div className="rounded-xl border border-purple-200 bg-purple-50 p-4 shadow-sm sm:p-5">
-            <p className="text-xs font-bold text-purple-900 sm:text-sm">
-              Ahorro del mes
-            </p>
+      <p className="text-sm font-bold text-red-900">
+        {partnerLabel === 'ella' ? 'Ella' : 'Él'}:{' '}
+        {currency.format(partnerTotals.expenses)}
+      </p>
+    </div>
+  ) : (
+    <p className="mt-2 break-words text-xl font-bold text-red-900 sm:text-2xl">
+      {currency.format(expenses)}
+    </p>
+  )}
+</div>
 
-            <p className="mt-2 break-words text-xl font-bold text-purple-900 sm:text-2xl">
-              {currency.format(monthlySavings)}
-            </p>
+         {/* AHORRO */}
+<div className="rounded-xl border border-purple-200 bg-purple-50 p-4 shadow-sm sm:p-5">
+  <p className="text-xs font-bold text-purple-900 sm:text-sm">
+    Ahorro del mes
+  </p>
 
-            <p className="mt-1 text-xs font-bold text-purple-700 sm:text-sm">
-              {savingsPercentage}% de tus ingresos
-            </p>
-          </div>
+  {graphView === 'both' ? (
+    <div className="mt-2 space-y-1">
+      <p className="text-sm font-bold text-purple-900">
+        Vos: {currency.format(myTotals.savings)}
+      </p>
 
-        </div>
+      <p className="text-xs font-bold text-purple-700">
+        {myTotals.income > 0
+          ? Math.round((myTotals.savings / myTotals.income) * 100)
+          : 0}% de tus ingresos
+      </p>
 
+      <p className="text-sm font-bold text-purple-900">
+        {partnerLabel === 'ella' ? 'Ella' : 'Él'}:{' '}
+        {currency.format(partnerTotals.savings)}
+      </p>
+
+      <p className="text-xs font-bold text-purple-700">
+        {partnerTotals.income > 0
+          ? Math.round((partnerTotals.savings / partnerTotals.income) * 100)
+          : 0}% de sus ingresos
+      </p>
+    </div>
+  ) : (
+    <>
+      <p className="mt-2 break-words text-xl font-bold text-purple-900 sm:text-2xl">
+        {currency.format(monthlySavings)}
+      </p>
+
+      <p className="mt-1 text-xs font-bold text-purple-700 sm:text-sm">
+        {savingsPercentage}% de tus ingresos
+      </p>
+    </>
+  )}
+</div>
+</div>
         {/* GRÁFICO */}
         <div className="mt-6">
 
@@ -464,8 +603,8 @@ export default function Home() {
             </h2>
 
             <p className="mt-1 text-sm text-gray-400">
-              {monthlyTransactions.length} movimiento
-              {monthlyTransactions.length !== 1 ? 's' : ''} en este mes
+              {movementTransactions.length} movimiento
+              {movementTransactions.length !== 1 ? 's' : ''} en este mes
             </p>
 
             {/* BUSCADOR */}
@@ -563,25 +702,29 @@ export default function Home() {
                       {currency.format(Number(transaction.amount))}
                     </p>
 
-                    <button
-                      onClick={() =>
-                        router.push(
-                          `/transactions/edit/${transaction.id}`
-                        )
-                      }
-                      className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-200 hover:bg-gray-800"
-                    >
-                      ✏️ Editar
-                    </button>
+                    {transaction.user_id === user.id && (
+                      <>
+                        <button
+                          onClick={() =>
+                            router.push(
+                              `/transactions/edit/${transaction.id}`
+                            )
+                          }
+                          className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-200 hover:bg-gray-800"
+                        >
+                          ✏️ Editar
+                        </button>
 
-                    <button
-                      onClick={() =>
-                        deleteTransaction(transaction.id)
-                      }
-                      className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-200 hover:bg-gray-800"
-                    >
-                      🗑️ Eliminar
-                    </button>
+                        <button
+                          onClick={() =>
+                            deleteTransaction(transaction.id)
+                          }
+                          className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-200 hover:bg-gray-800"
+                        >
+                          🗑️ Eliminar
+                        </button>
+                      </>
+                    )}
 
                   </div>
 
@@ -599,4 +742,3 @@ export default function Home() {
     </main>
   )
 }
-
