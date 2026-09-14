@@ -10,6 +10,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [useWithPartner, setUseWithPartner] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -30,6 +31,11 @@ export default function RegisterPage() {
       return
     }
 
+    if (useWithPartner === null) {
+  setError('Elegí cómo querés usar Finanzas App.')
+  return
+}
+
     setLoading(true)
 
     const { error } = await supabase.auth.signUp({
@@ -43,9 +49,19 @@ export default function RegisterPage() {
       return
     }
 
-    setSuccess(
-      'Cuenta creada correctamente. Revisá tu email para confirmar la cuenta si es necesario.'
-    )
+ if (useWithPartner) {
+  setSuccess(
+    'Cuenta creada correctamente. Ahora iniciá sesión para vincularte con tu pareja.'
+  )
+
+  setTimeout(() => {
+    router.push('/login?redirect=/couple')
+  }, 1500)
+} else {
+  setSuccess(
+    'Cuenta creada correctamente. Revisá tu email para confirmar la cuenta si es necesario.'
+  )
+}
 
     setLoading(false)
   }
@@ -112,6 +128,50 @@ export default function RegisterPage() {
               className="w-full rounded-lg border border-gray-700 bg-white p-3 text-gray-700 placeholder:text-gray-400 outline-none focus:ring-2 focus:ring-gray-600"
             />
           </div>
+
+          <div>
+  <p className="mb-3 block text-black">
+    ¿Cómo querés usar Finanzas App?
+  </p>
+
+  <div className="space-y-3">
+    <button
+      type="button"
+      onClick={() => setUseWithPartner(false)}
+      className={`w-full rounded-lg border p-3 text-left ${
+        useWithPartner === false
+          ? 'border-gray-700 bg-gray-100'
+          : 'border-gray-300 bg-white'
+      }`}
+    >
+      <span className="block font-bold text-black">
+        👤 Usar la app solo
+      </span>
+
+      <span className="mt-1 block text-sm font-normal text-gray-500">
+        Mis finanzas son únicamente mías.
+      </span>
+    </button>
+
+    <button
+      type="button"
+      onClick={() => setUseWithPartner(true)}
+      className={`w-full rounded-lg border p-3 text-left ${
+        useWithPartner === true
+          ? 'border-gray-700 bg-gray-100'
+          : 'border-gray-300 bg-white'
+      }`}
+    >
+      <span className="block font-bold text-black">
+        💑 Compartir con mi pareja
+      </span>
+
+      <span className="mt-1 block text-sm font-normal text-gray-500">
+        Quiero vincular mis finanzas con mi pareja.
+      </span>
+    </button>
+  </div>
+</div>
 
           {error && (
             <div className="rounded-lg bg-red-100 p-3 text-sm text-red-700">

@@ -12,27 +12,29 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  async function handleLogin(event) {
-    event.preventDefault()
+ async function handleLogin(event) {
+  event.preventDefault()
 
-    setLoading(true)
-    setError('')
+  setLoading(true)
+  setError('')
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+  const { error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  })
 
-    if (error) {
-      setError(error.message)
-      setLoading(false)
-      return
-    }
-
-    router.push('/')
-    router.refresh()
+  if (error) {
+    setError(error.message)
+    setLoading(false)
+    return
   }
 
+  const redirectTo =
+    new URLSearchParams(window.location.search).get('redirect') || '/'
+
+  router.push(redirectTo)
+  router.refresh()
+}
   return (
     <main className="flex min-h-screen items-center justify-center bg-gray-700 p-3 font-bold sm:p-6">
 
