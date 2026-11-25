@@ -5,16 +5,17 @@ import { supabase } from '@/lib/supabase/client'
 import { useParams, useRouter } from 'next/navigation'
 
 const categories = [
-  'Salida',
+  'Salidas y comida',
   'Supermercado',
   'Transporte',
   'Auto',
   'Vivienda',
   'Servicios',
-  'Salud',
+  'Salud e higiene',
   'Educación',
   'Entretenimiento',
-'Suscripciones',
+  'Futbol', 
+  'Suscripciones',
   'Ropa',
   'Tarjeta',
   'Viajes',
